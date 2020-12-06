@@ -1,0 +1,414 @@
+---
+title: "Data Analysis - Final Project"
+output: html_notebook
+---
+
+# Introduction
+
+The data were obtained in a portuguese survey of student enrolled in a
+portuguese language course in secondary school. The following features were
+recorded:
+
+1. `school` - student's school (binary: 'GP' - Gabriel Pereira or 'MS' - 
+   Mousinho da Silveira)
+2. `sex` - student's sex (binary: 'F' - female or 'M' - male)
+3. `age` - student's age (numeric: from 15 to 22)
+4. `address` - student's home address type (binary: 'U' - urban or 'R' - rural)
+5. `famsize` - family size (binary: 'LE3' - less or equal to 3 or 'GT3' -
+   greater than 3)
+6. `Pstatus` - parent's cohabitation status (binary: 'T' - living together or 
+   'A' - apart)
+7. ` Medu` - mother's education (numeric: 0 - none, 1 - primary education (4th
+   grade), 2 – 5th to 9th grade, 3 – secondary education or 4 – higher
+   education)
+8. `Fedu` - father's education (numeric: 0 - none, 1 - primary education (4th
+   grade), 2 – 5th to 9th grade, 3 – secondary education or 4 – higher
+   education)
+9. `Mjob` - mother's job (nominal: 'teacher', 'health' care related, civil
+   'services' (e.g. administrative or police), 'at_home' or 'other')
+10. `Fjob` - father's job (nominal: 'teacher', 'health' care related, civil
+    'services' (e.g. administrative or police), 'at_home' or 'other')
+11. `reason` - reason to choose this school (nominal: close to 'home', school
+   'reputation', 'course' preference or 'other')
+12. `guardian` - student's guardian (nominal: 'mother', 'father' or 'other')
+13. `traveltime` - home to school travel time (numeric: 1 - 1 hour)
+14. `studytime` - weekly study time (numeric: 1 - 10 hours)
+15. `failures` - number of past class failures (numeric: n if 1<=n<3, else 4)
+16. `schoolsup` - extra educational support (binary: yes or no)
+17. `famsup` - family educational support (binary: yes or no)
+18. `paid` - extra paid classes within the course subject (Math or Portuguese)
+   (binary: yes or no)
+19. `activities` - extra-curricular activities (binary: yes or no)
+20. `nursery` - attended nursery school (binary: yes or no)
+21. `higher` - wants to take higher education (binary: yes or no)
+22. `internet` - Internet access at home (binary: yes or no)
+23. `romantic` - with a romantic relationship (binary: yes or no)
+24. `famrel` - quality of family relationships (numeric: from 1 - very bad to
+   5 - excellent)
+25. `freetime` - free time after school (numeric: from 1 - very low to 5 -
+   very high)
+26. `goout` - going out with friends (numeric: from 1 - very low to 5 - very
+   high)
+27. `Dalc` - workday alcohol consumption (numeric: from 1 - very low to 5 -
+   very high)
+28. `Walc` - weekend alcohol consumption (numeric: from 1 - very low to 5 -
+   very high)
+29. `health` - current health status (numeric: from 1 - very bad to 5 - very
+   good)
+30. `absences` - number of school absences (numeric: from 0 to 93)
+
+```{r message=FALSE}
+library(tidyverse)
+library(reshape2)
+library(fastDummies)
+library(FactoMineR)
+library(factoextra)
+library(gridExtra)
+library(psych)
+
+# Load dataset.
+alcohol <- read.csv("student-por.csv", stringsAsFactors = TRUE)
+rmarkdown::paged_table(alcohol)
+```
+
+# Correlation matrix
+
+We are interested in the correlation between the features. To do this,
+variables must be dummy coded, i.e. new binary variables are created to encode
+nominal variables.
+
+```{r message=FALSE}
+# Dummy code variables.
+alcohol_dummy_coded <- dummy_columns(
+  alcohol,
+  remove_first_dummy = TRUE,
+  remove_selected_columns = TRUE
+)
+```
+
+The correlation matrix can then be computed.
+
+```{r fig1}
+# Plot correlation matrix.
+alcohol_dummy_coded %>% 
+  cor %>%
+  melt %>%
+  ggplot(aes(x = Var1, y = Var2, fill = value)) + 
+    geom_tile(color = "grey") + 
+    scale_fill_gradient2(
+      low = "blue", high = "red", mid = "white",
+      midpoint = 0, limit = c(-1,1), name = "Pearson\nCorrelation"
+    ) + 
+    theme(
+      axis.text.x = element_text(angle = 90, size = 5, hjust = 1, vjust = 0),
+      axis.text.y = element_text(size = 5, hjust = 1, vjust = 0),
+      legend.title = element_text(size = 7), 
+      legend.text = element_text(size = 5)
+    ) +
+    guides(fill = guide_colourbar(barwidth = 0.5, barheight = 5)) +
+    coord_fixed() +
+    xlab("") +
+    ylab("") 
+```
+
+Unsurprisingly, grades `G1`, `G2` and `G3` are strongly positively correlated.
+Since including nearly-redundant variables can cause methods like PCA to
+overemphasize their contribution (i.e. several eigenvectors will be more
+weighted, thereby changing the directions of all eigenvectors), we choose to
+keep only the mean of these grades.
+
+```{r}
+# Compute mean of grades G1, G2 and G3.
+alcohol <- alcohol %>%
+  mutate(mean_grade = (G1 + G2 + G3)/3) %>%
+  select(-c(G1, G2, G3))
+```
+
+# PCA on quantitative variables
+
+Since we don't have access to an expert opinion on this dataset, we cannot
+determine the number of factors in advance. Thus, it makes more sense to use
+principal component analysis over factor analysis. PCA can be applied on all
+numeric and ordinal variables if there is sufficient correlation between them
+(PCA on a set of orthogonal variables would lead to the same set of variables).
+Since the previous correlation matrix clearly isn't the identity matrix
+(concerned readers could run a Bartlett test of homogeneity of variances to be
+assured of this), PCA can be applied.
+
+```{r fig2}
+alcohol_numeric_scaled <- alcohol %>%
+  select_if(is.numeric) %>%
+  scale
+
+pca_res <- PCA(alcohol_numeric_scaled, 
+               ncp = 10, 
+               scale.unit = FALSE,
+               graph = FALSE)
+
+fviz_eig(pca_res)
+```
+
+The previous screeplot shows that we couldn't find very strong components.
+Since there isn't any sharp break in the screeplot, we use Horn's parallel
+analysis to determine the number of components to keep.
+
+```{r fig3}
+fa.parallel(alcohol %>% select_if(is.numeric), fa = "pc")
+```
+
+## Analysis of variables
+
+Let's look at the first five principal components and try to interpret them in
+relation to the survey variables:
+
+```{r fig4}
+plots <- list()
+for (i in 1:5) {
+  pca_cor_df <- data.frame(
+    label = alcohol %>% select_if(is.numeric) %>% names,
+    correlation = pca_res$var$cor[, i]
+  )
+  plots[[i]] <- pca_cor_df %>% 
+    ggplot(aes(x = label, y = correlation)) +
+      geom_bar(stat = "identity", fill = "steelblue") +
+      coord_flip() + 
+      theme(axis.text.y = element_text(size = 12))
+}
+
+plots[[1]]
+```
+
+Seeing that the first principal component shows high positive correlation with
+features like alcohol consumption, number of class failures and frequency of
+time spent out with friend and high negative correlation with the mean grade,
+time spent studying and parents' education, it could represent the **school 
+failures caused by alcohol consumption, lack of studying and/or parent's lack
+of education**.
+
+```{r fig5}
+plots[[2]]
+```
+
+The second component is highly correlated with the parents' education and
+relatively correlated with alcohol consumption and time spent out with friend,
+while being slightly anti-correlated with travel time. It could represent
+the **social status**, since students whose parents received better education
+are more likely to belong to higher social classes.
+
+```{r fig6}
+plots[[3]]
+```
+
+The third component is highly correlated with free time and family relationship
+and anti-correlated with the student's absences. It could represent the
+student's **family relationship**, as students who have good family
+relationship are likely to be given more free time and not skip school.
+
+```{r fig7}
+plots[[4]]
+```
+
+The fourth component could represent the **class failures that aren't caused by
+alcohol consumption or lack of studying**, as opposed to the first component.
+However, the numerical and ordinal data doesn't contain variables that explain
+these failures.
+
+```{r fig8}
+plots[[5]]
+```
+
+The fifth component is correlated with age and study time and anti-correlated
+with health. It is harder to represent, but could roughly represent **older
+students who might be exhausted from studying, or might not be happy with their
+environment due to their older age**.
+
+## Analysis of individuals
+
+To deepen our understanding of the previously studied components, let's look
+at the most contributing individuals of each component.
+
+```{r}
+# Find the ten most contributing individuals to PC n.
+MostContribInd <- function(dim, n = 10) {
+  dim_name <- enexpr(dim)
+
+  ind <- pca_res$ind$contrib %>% 
+    data.frame %>% 
+    select(!!dim_name) %>% 
+    arrange(desc(!!dim_name)) %>% 
+    head(n = n) %>%
+    rownames %>%
+    as.numeric
+
+  return(alcohol[ind, ])
+}
+
+rmarkdown::paged_table(MostContribInd(Dim.1))
+```
+
+As we've seen in the previous section, the students contributing the most to
+the first principal component have low grades, parents with low education, go
+out frequently with friends and a lot on average.
+
+```{r}
+rmarkdown::paged_table(MostContribInd(Dim.2))
+```
+
+Students contributing the most to the second principal component either come
+from families with high social status (high parents education, lots of free
+time, etc.), or very low social status. It is also interesting to see that
+their guardian is often the mother and that most of these students intend to
+pursue higher education.
+
+```{r}
+rmarkdown::paged_table(MostContribInd(Dim.3))
+```
+
+Students contributing the most to the third principal component have a lot of
+class absences and relatively low free time and weak family relationship. It is
+also interesting to see that most of them are females and that they don't
+practice any extra-curricular activities.
+
+```{r}
+rmarkdown::paged_table(MostContribInd(Dim.4))
+```
+
+Students contributing the most to the fourth principal component once again
+confirm our interpretation : they have in general a high number of class
+failures and don't drink a lot, or *vice versa*. Moreover, we observe that most
+of them practice extra-curricular activities and that they come from big
+families.
+
+```{r}
+rmarkdown::paged_table(MostContribInd(Dim.5))
+```
+
+Finally, students contributing the most to the fifth principal component are
+either older, have poor health but often go out with friends, or *vice versa*.
+
+## Conclusion on PCA
+
+We chose to keep five principal components of our students survey dataset and
+tried to interpret them. However, these five principal components only explain
+approximately 57% of the variance in the data and their interpretations were
+relatively vague. Factor analysis could have lead to better interpretations,
+in particular using methods of loading rotation such as varimax. However, the
+lack of expert opinion on the right number of factors lead us to use PCA, so
+as to give a first interpretation of the possible latent factors and introduce
+the next method of analysis: multiple correspondence analysis.
+
+# MCA on categorical variables
+
+As we've seen, this dataset contains mixed data, i.e. nominal, ordinal and
+numerical features. To apply MCA, we must pre-process the dataset by converting
+quantitative variables to ordinal (e.g. grades could be converted to "0-5",
+"5-10", etc.). The following variables will be converted:
+
+- `age`: "minor", "adult".
+- `absences`: "0-10", "10-20", "20-30", ">30";
+- `mean_grade``: "0-5", "5-10", "10-15", "15-20".
+
+The MCA model can then be fitted on the data.
+
+```{r}
+# Create another dataset with quantitative variables converted to ordinals.
+alcohol_cat <- alcohol %>%
+  mutate(
+    age = cut(
+      age,
+      breaks = c(-1, 18, 99), 
+      labels = c("minor", "adult"),
+    ),
+    absences = cut(
+      absences,
+      breaks = c(-1, 10, 20, 30, 99),
+      labels = c("<10", "10-20", "20-30", ">30")
+    ),
+    mean_grade = cut(
+      mean_grade, 
+      breaks = c(-1, 5, 10, 15, 20), 
+      labels = c("0-5", "5-10" ,"10-15", "15-20")
+    )
+  ) %>%
+  lapply(as.factor) %>%
+  data.frame
+
+# Perform MCA.
+mca_res <- MCA(alcohol_cat, ncp = 5, graph = FALSE)
+rotated_loadings_mca = varimax(mca_res$var$coord[, 1:5], normalize=TRUE)
+
+fviz_screeplot(mca_res, addlabels = TRUE, ylim = c(0, 10))
+```
+
+As we were able to interpret five principal components using PCA, we choose to
+keep 5 factors in the MCA model. Varimax rotation will be applied to hopefully
+be able to give better interpretations of each factor, since the percentages of
+explained variances are relatively low.
+
+## Analysis of variables
+
+```{r fig.height=6, fig.width=3}
+plots <- list()
+for (i in 1:5) {
+  mca_cor_df <- data.frame(
+    label = rownames(mca_res$var$contrib),
+    loading = rotated_loadings_mca$loadings[, i]
+  )
+  plots[[i]] <- mca_cor_df %>% 
+    ggplot(aes(x = label, y = loading)) +
+      geom_bar(stat = "identity", fill = "steelblue") +
+      coord_flip()
+}
+
+plots[[1]]
+```
+
+The first factor's interpretation is straightforward: it correspond to **low
+number of absences, between 0 and 5**.
+
+```{r fig.height=6, fig.width=3}
+plots[[2]]
+```
+
+Similarly, the second factor corresponds to **high consumption of alcohol, in
+particular during the working days**.
+
+```{r fig.height=6, fig.width=3}
+plots[[3]]
+```
+
+The third factor corresponds to **parents education**. It is also interesting
+to see that high number of absences (more than 30) have a highly negative
+loading on this factor.
+
+```{r fig.height=6, fig.width=3}
+plots[[4]]
+```
+
+Categories such as the number of failures, high consumption of alcohol during
+the work days, being an adult or not having one's parents as guardians have
+high loadings on the fourth factor. Thus, we could interpret this factor
+as representing **adult students, possibly living by themselves, having
+relatively poor results in other classes**.
+
+```{r fig.height=6, fig.width=3}
+plots[[5]]
+```
+
+The fifth and final factor we chose to interpret is a mixed bag. Overall
+alcohol consumption has a strong negative loading, while low father education
+has a positive loading. It could represent **families with low social status**,
+but a more precise interpretation might require more expert knowledge.
+
+## Conclusion on MCA
+
+
+
+We chose to keep five principal components of our students survey dataset and
+tried to interpret them. However, these five principal components only explain
+approximately 57% of the variance in the data and their interpretations were
+relatively vague. Factor analysis could have lead to better interpretations,
+in particular using methods of loading rotation such as varimax. However, the
+lack of expert opinion on the right number of factors lead us to use PCA, so
+as to give a first interpretation of the possible latent factors and introduce
+the next method of analysis: multiple correspondence analysis.
