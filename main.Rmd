@@ -1,6 +1,8 @@
 ---
 title: "Data Analysis - Final Project"
-output: html_notebook
+output:
+  html_document:
+    df_print: paged
 ---
 
 # Introduction
@@ -347,7 +349,7 @@ explained variances are relatively low.
 
 ## Analysis of variables
 
-```{r fig.height=6, fig.width=3}
+```{r fig.height=9}
 plots <- list()
 for (i in 1:5) {
   mca_cor_df <- data.frame(
@@ -357,7 +359,8 @@ for (i in 1:5) {
   plots[[i]] <- mca_cor_df %>% 
     ggplot(aes(x = label, y = loading)) +
       geom_bar(stat = "identity", fill = "steelblue") +
-      coord_flip()
+      coord_flip() +
+      theme(axis.text.y = element_text(size = 6))
 }
 
 plots[[1]]
@@ -366,14 +369,14 @@ plots[[1]]
 The first factor's interpretation is straightforward: it correspond to **low
 number of absences, between 0 and 5**.
 
-```{r fig.height=6, fig.width=3}
+```{r fig.height=9}
 plots[[2]]
 ```
 
 Similarly, the second factor corresponds to **high consumption of alcohol, in
 particular during the working days**.
 
-```{r fig.height=6, fig.width=3}
+```{r fig.height=9}
 plots[[3]]
 ```
 
@@ -381,7 +384,7 @@ The third factor corresponds to **parents education**. It is also interesting
 to see that high number of absences (more than 30) have a highly negative
 loading on this factor.
 
-```{r fig.height=6, fig.width=3}
+```{r fig.height=9}
 plots[[4]]
 ```
 
@@ -391,7 +394,7 @@ high loadings on the fourth factor. Thus, we could interpret this factor
 as representing **adult students, possibly living by themselves, having
 relatively poor results in other classes**.
 
-```{r fig.height=6, fig.width=3}
+```{r fig.height=9}
 plots[[5]]
 ```
 
@@ -402,13 +405,8 @@ but a more precise interpretation might require more expert knowledge.
 
 ## Conclusion on MCA
 
-
-
-We chose to keep five principal components of our students survey dataset and
-tried to interpret them. However, these five principal components only explain
-approximately 57% of the variance in the data and their interpretations were
-relatively vague. Factor analysis could have lead to better interpretations,
-in particular using methods of loading rotation such as varimax. However, the
-lack of expert opinion on the right number of factors lead us to use PCA, so
-as to give a first interpretation of the possible latent factors and introduce
-the next method of analysis: multiple correspondence analysis.
+Thanks to varimax rotation, the five first factors were easily interpreted. We
+also found some similarities with the principal components studied in the
+previous section. However, these five factors only explain a small percentage
+of the variance in the dataset: thus, they cannot be understood as the only
+latent factors.
